@@ -1,0 +1,32 @@
+
+n*m: height * width -> arbitrarily sized
+
+        |
+        V   <- cursor
+________________
+________________
+_____C___A______
+___ABCBB_BAA____
+
+{
+0: [a, b, c],
+1: [b, _, d],
+}
+
+{
+(0,0): val,
+(0,1): val,
+(0,2): val,
+}
+
+when you drop a letter it could
+1. cause a match and you need to destroy that match, drop all letters above it, and destroy any downstream matches and drop their downstream letters above
+2. nothing
+
+when you need to destroy a match, you need to
+1. check if there's anything above it
+    a. if so you need to continue to look up and see how many letters to drop
+        - if you hit 0 on the y axis you just replace with a "_"
+        - if you hit "_" as the value, you can stop
+        - if you hit any letter, you need to bring it into your cell
+    b. if not you can just replace your cell with "_" and continue on

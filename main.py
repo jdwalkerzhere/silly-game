@@ -1,37 +1,3 @@
-"""
-n*m: height * width -> arbitrarily sized
-
-        |
-        V   <- cursor
-________________
-________________
-_____C___A______
-___ABCBB_BAA____
-
-{
-0: [a, b, c],
-1: [b, _, d],
-}
-
-{
-(0,0): val,
-(0,1): val,
-(0,2): val,
-}
-
-when you drop a letter it could
-1. cause a match and you need to destroy that match, drop all letters above it, and destroy any downstream matches and drop their downstream letters above
-2. nothing
-
-when you need to destroy a match, you need to
-1. check if there's anything above it
-    a. if so you need to continue to look up and see how many letters to drop
-        - if you hit 0 on the y axis you just replace with a "_"
-        - if you hit "_" as the value, you can stop
-        - if you hit any letter, you need to bring it into your cell
-    b. if not you can just replace your cell with "_" and continue on
-"""
-
 import os
 import sys
 from dataclasses import dataclass
@@ -47,6 +13,12 @@ class Move:
     action: Callable
 
 
+@dataclass
+class Cell:
+    value: str
+    color: str
+
+
 class GameBoard:
     def __init__(self, width: int = 10, height: int = 10, destroy_count: int = 3) -> None:
         self._valid_moves = {
@@ -59,11 +31,14 @@ class GameBoard:
         self.width = width
         self.height = height
         self.destroy_count = destroy_count
-        self.board = self.build_board()
         self.cursor: int = width // 2
+
+        self.board = self.build_board()
         self.current_letter = self.get_letter()
+
         self.turn = 0
         self.score = 0
+
         self.play()
 
 
@@ -75,6 +50,8 @@ class GameBoard:
             board.append("".join([self.board[(i,j)] for i in range(self.width)]))
         board.append("".join([" " if i != self.cursor else "^" for i in range(self.width)]))
         board.append("".join([" " if i != self.cursor else "|" for i in range(self.width)]) + f"Score: {self.score}")
+        controls = '\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])
+        board.append(f"Controls:\n{controls}\n")
         return "\n".join(board)
 
     def build_board(self) -> dict[tuple[int,int],str]:
@@ -83,11 +60,14 @@ class GameBoard:
     def get_letter(self) -> str:
         return choice(LETTERS)
 
+    def render(self) -> None:
+        os.system("clear")
+        print(self)
+
     def play(self) -> None:
         while True:
-            print(self)
-            user_input = input(f"Controls:\n{'\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])}\nInput: ")
-            os.system("clear")
+            self.render()
+            user_input = input("Input: ")
             if user_input not in self._valid_moves:
                 continue
             self._valid_moves[user_input].action()
@@ -95,7 +75,7 @@ class GameBoard:
     def destroy_matches(self, x: int, y: int, letter: str) -> None:
         if self.board[(x, y)] == "_":
             return
-        # We need to look left, right, and down
+
         to_destroy_horizontal = [(x, y)]
         to_destroy_vertical = [(x, y)]
         left = x - 1
@@ -168,7 +148,7 @@ class GameBoard:
 
 
 def main():
-    gb = GameBoard(20, 10)
+    GameBoard(20, 10)
 
 if __name__ == "__main__":
     main()
