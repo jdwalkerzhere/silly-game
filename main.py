@@ -73,7 +73,6 @@ class GameBoard:
             self._valid_moves[user_input].action()
 
     def destroy_matches(self, x: int, y: int, letter: str) -> None:
-        print(f"Destroying {(x, y)} - Letter {letter}")
         if self.board[(x, y)] == "_":
             return
 
@@ -100,7 +99,6 @@ class GameBoard:
             for x, y in to_destroy_vertical:
                 destroyed.add((x, y))
 
-        print(f"Destroyed: {destroyed}")
 
         for d_cell in sorted(destroyed, key=lambda x: x[1]):
             self.drop_supported(d_cell)
@@ -109,7 +107,6 @@ class GameBoard:
             self.destroy_matches(x, y, letter)
 
     def drop_supported(self, d_cell: tuple[int, int]) -> list[tuple[int, int]]:
-        print(f"dropping supoprts from {d_cell}")
         x, curr_y = d_cell
         next_y = curr_y - 1
 
