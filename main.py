@@ -125,8 +125,7 @@ class GameBoard:
             letter = self.board[d_cell]
             self.destroy_matches(x, y, letter)
 
-    def drop_supported(self, d_cell: tuple[int, int]) -> list[tuple[int, int]]:
-        effected_cells = []
+    def drop_supported(self, d_cell: tuple[int, int]):
         x, curr_y = d_cell
         next_y = curr_y - 1
 
@@ -135,8 +134,7 @@ class GameBoard:
             return []
 
         self.board[(x, curr_y)] = self.board[(x, next_y)]
-        effected_cells.extend(self.drop_supported((x, next_y)))
-        return effected_cells
+        self.drop_supported((x, next_y))
 
     def cursor_left(self) -> None:
         assert 0 <= self.cursor <= self.width - 1
