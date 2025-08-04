@@ -18,6 +18,18 @@ ___ABCBB_BAA____
 (0,1): val,
 (0,2): val,
 }
+
+when you drop a letter it could
+1. cause a match and you need to destroy that match, drop all letters above it, and destroy any downstream matches and drop their downstream letters above
+2. nothing
+
+when you need to destroy a match, you need to
+1. check if there's anything above it
+    a. if so you need to continue to look up and see how many letters to drop
+        - if you hit 0 on the y axis you just replace with a "_"
+        - if you hit "_" as the value, you can stop
+        - if you hit any letter, you need to bring it into your cell
+    b. if not you can just replace your cell with "_" and continue on
 """
 
 import os
@@ -80,7 +92,9 @@ class GameBoard:
                 continue
             self._valid_moves[user_input].action()
 
-    def destroy_matches(self, x: int, y: int, letter: str) -> set[tuple[int,int]]:
+    def destroy_matches(self, x: int, y: int, letter: str) -> None:
+        if self.board[(x, y)] == "_":
+            return
         # We need to look left, right, and down
         to_destroy_horizontal = [(x, y)]
         to_destroy_vertical = [(x, y)]
@@ -101,22 +115,28 @@ class GameBoard:
         if len(to_destroy_horizontal) >= self.destroy_count:
             for x, y in to_destroy_horizontal:
                 destroyed.add((x, y))
-                self.board[(x, y)] = "_"
         if len(to_destroy_vertical) >= self.destroy_count:
             for x, y in to_destroy_vertical:
-                destroyed.add((x,y))
-                self.board[(x, y)] = "_"
+                destroyed.add((x, y))
 
-        return destroyed
+        for d_cell in destroyed:
+            self.drop_supported(d_cell)
+            x, y = d_cell
+            letter = self.board[d_cell]
+            self.destroy_matches(x, y, letter)
 
-    def drop_supported(self, d_cell: tuple[int, int]) -> None:
+    def drop_supported(self, d_cell: tuple[int, int]) -> list[tuple[int, int]]:
+        effected_cells = []
         x, curr_y = d_cell
         next_y = curr_y - 1
-        while next_y >= 0:
-            self.board[(x, curr_y)] = self.board[(x, next_y)]
-            curr_y -= 1
-            next_y -= 1
-        self.board[(x, 0)] = "_"
+
+        if curr_y == 0 or self.board[(x, next_y)] == "_":
+            self.board[(x, curr_y)] = "_"
+            return []
+
+        self.board[(x, curr_y)] = self.board[(x, next_y)]
+        effected_cells.extend(self.drop_supported((x, next_y)))
+        return effected_cells
 
     def cursor_left(self) -> None:
         assert 0 <= self.cursor <= self.width - 1
@@ -141,12 +161,8 @@ class GameBoard:
             return
 
         self.board[(self.cursor, y_check)] = self.current_letter
-        destroyed_cells = self.destroy_matches(self.cursor, y_check, self.current_letter)
-        self.score += 10 * len(destroyed_cells)
+        self.destroy_matches(self.cursor, y_check, self.current_letter)
         self.current_letter = self.get_letter()
-
-        for d_cell in destroyed_cells:
-            self.drop_supported(d_cell)
 
     def quit_game(self) -> None:
         print("Thanks for playing!")
