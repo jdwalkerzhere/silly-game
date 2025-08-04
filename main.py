@@ -112,11 +112,11 @@ class GameBoard:
     def drop_supported(self, d_cell: tuple[int, int]) -> None:
         x, curr_y = d_cell
         next_y = curr_y - 1
-        while next_y > 0:
+        while next_y >= 0:
             self.board[(x, curr_y)] = self.board[(x, next_y)]
             curr_y -= 1
             next_y -= 1
-        self.board[(x, next_y)] = "_"
+        self.board[(x, 0)] = "_"
 
     def cursor_left(self) -> None:
         assert 0 <= self.cursor <= self.width - 1
@@ -133,7 +133,7 @@ class GameBoard:
     def drop_letter(self) -> None:
         y_check = self.height - 1
         # Iterate until we find an empty spot
-        while self.board[(self.cursor, y_check)] != "_" and y_check >= 0:
+        while y_check >= 0 and self.board[(self.cursor, y_check)] != "_":
             y_check -= 1
 
         # attempting to place letter on full column
