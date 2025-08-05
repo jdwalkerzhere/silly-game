@@ -1,8 +1,11 @@
 import os
 import sys
 from dataclasses import dataclass
+from queue import Queue
 from random import choice
-from typing import Callable
+from typing import Callable, Union
+
+from pynput import keyboard
 
 LETTERS = ("A", "B", "C")
 
@@ -20,7 +23,8 @@ class Cell:
 
 
 class GameBoard:
-    def __init__(self, width: int = 10, height: int = 10, destroy_count: int = 3) -> None:
+    def __init__(self, width: int = 10, height: int = 10, 
+                 destroy_count: int = 3, starting_board: Union[str, None] = None) -> None:
         self._valid_moves = {
                 "h": Move("h", "Move Left", self.cursor_left),
                 "l": Move("l", "Move Right",self.cursor_right),
@@ -33,11 +37,15 @@ class GameBoard:
         self.destroy_count = destroy_count
         self.cursor: int = width // 2
 
-        self.board = self.build_board()
+        self.board = self.build_board(starting_board)
         self.current_letter = self.get_letter()
 
         self.turn = 0
         self.score = 0
+
+        self.queue = Queue()
+        self.listener = keyboard.Listener(on_press=self._on_press)
+        self.listener.start()
 
         self.play()
 
@@ -51,10 +59,13 @@ class GameBoard:
         board.append("".join([" " if i != self.cursor else "^" for i in range(self.width)]))
         board.append("".join([" " if i != self.cursor else "|" for i in range(self.width)]) + f"Score: {self.score}")
         controls = '\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])
-        board.append(f"Controls:\n{controls}\n")
+        board.append(f"Controls:\n{controls}")
+        board.append("Input: ")
         return "\n".join(board)
 
-    def build_board(self) -> dict[tuple[int,int],str]:
+    def build_board(self, starting_board: Union[str, None] = None) -> dict[tuple[int,int],str]:
+        if starting_board:
+            raise NotImplementedError
         return {(i,j):"_" for i in range(self.width) for j in range(self.height)}
 
     def get_letter(self) -> str:
@@ -67,43 +78,55 @@ class GameBoard:
     def play(self) -> None:
         while True:
             self.render()
-            user_input = input("Input: ")
+            user_input = self.queue.get()
             if user_input not in self._valid_moves:
                 continue
             self._valid_moves[user_input].action()
 
+    def _on_press(self, key):
+        try:
+            if hasattr(key, "char") and key.char not in self._valid_moves:
+                return
+            if hasattr(key, "char"):
+                self.queue.put(key.char)
+        except AttributeError:
+            pass
+
+
     def destroy_matches(self, x: int, y: int, letter: str) -> None:
-        if self.board[(x, y)] == "_":
+        """
+        """
+        if letter == "_":
             return
 
-        to_destroy_horizontal = [(x, y)]
-        to_destroy_vertical = [(x, y)]
-        left = x - 1
-        right = x + 1 
-        down = y + 1
+        left = x
         while left >= 0 and self.board[(left, y)] == letter:
-            to_destroy_horizontal.append((left, y))
             left -= 1
+
+        right = x 
         while right < self.width and self.board[(right, y)] == letter:
-            to_destroy_horizontal.append((right, y))
             right += 1
+
+        down = y
         while down < self.height and self.board[(x, down)] == letter:
-            to_destroy_vertical.append((x, down))
             down += 1
 
         destroyed = set()
-        if len(to_destroy_horizontal) >= self.destroy_count:
-            for x, y in to_destroy_horizontal:
-                destroyed.add((x, y))
-        if len(to_destroy_vertical) >= self.destroy_count:
-            for x, y in to_destroy_vertical:
-                destroyed.add((x, y))
+        if right - left > self.destroy_count:
+            for i in range(left + 1, right):
+                destroyed.add((i, y))
+        if down - y >= self.destroy_count:
+            for j in range(y, down):
+                destroyed.add((x, j))
 
-
+        self.score += 10 * len(destroyed)
+        new_candidates = []
         for d_cell in sorted(destroyed, key=lambda x: x[1]):
-            self.drop_supported(d_cell)
-            x, y = d_cell
-            letter = self.board[d_cell]
+            new_candidates.extend(self.drop_supported(d_cell))
+
+        for cell in new_candidates:
+            x, y = cell
+            letter = self.board[cell]
             self.destroy_matches(x, y, letter)
 
     def drop_supported(self, d_cell: tuple[int, int]) -> list[tuple[int, int]]:
@@ -133,17 +156,17 @@ class GameBoard:
 
     def drop_letter(self) -> None:
         y_check = self.height - 1
-        # Iterate until we find an empty spot
+
         while y_check >= 0 and self.board[(self.cursor, y_check)] != "_":
             y_check -= 1
 
-        # attempting to place letter on full column
         if y_check == -1:
             return
 
         self.board[(self.cursor, y_check)] = self.current_letter
-        self.destroy_matches(self.cursor, y_check, self.current_letter)
+        self.destroy_matches(self.cursor, y_check, self.board[(self.cursor, y_check)])
         self.current_letter = self.get_letter()
+        self.turn += 1
 
     def quit_game(self) -> None:
         print("Thanks for playing!")
