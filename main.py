@@ -44,7 +44,7 @@ class GameBoard:
         self.score = 0
 
         self.queue = Queue()
-        self.listener = keyboard.Listener(on_press=self._on_press)
+        self.listener = keyboard.Listener(on_press=self._on_press, suppress=True)
         self.listener.start()
 
         self.play()
@@ -169,6 +169,7 @@ class GameBoard:
         self.turn += 1
 
     def quit_game(self) -> None:
+        self.listener.stop()
         print("Thanks for playing!")
         sys.exit(0)
 
