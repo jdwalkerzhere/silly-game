@@ -11,18 +11,34 @@ LETTERS = ("A", "B", "C")
 
 @dataclass
 class Move:
+    """
+    Dataclass used to populate the `_valid_moves` member of the `GameBoard` class.
+
+    Fields:
+    - key: `str` - The actual keyboard key press associated with the action
+    - description: `str` - (unsurprisingly) describes the action
+    - action: `typing.Callable` - functions to navigate the board, drop letters, or exit the game
+    """
     key: str
     description: str
     action: Callable
 
 
-@dataclass
-class Cell:
-    value: str
-    color: str
-
-
 class GameBoard:
+    """
+    GameBoard represents the entirity of the Letter Crush game. It should likely be renamed to Letter Crush for this reason.
+
+    The game is simple, given some set of letters you need to line them up either vertically or horizontally. If the number
+    you have lined up is greater than the `destroy_count` member (defaults to 3), those letters get destroyed. Probably most
+    interesting is that upon crushing some letters, new letters could fall into alignments that cause cascading crushes.
+
+    TO DO:
+        - Implement a `starting_board` functionality so that a board can be populated from an existing file.
+        - Implement some nicer representation of when letters get crushed (print them red, sleep, drop letters, print again)
+        - Fina a more performant way to print the board, I don't want to iterate through it each render if state hasn't changed
+            - of note can't cache the board
+        - Find a more performant way to do letter destruction without passing a ton of data around
+    """
     def __init__(self, width: int = 10, height: int = 10, 
                  destroy_count: int = 3, starting_board: Union[str, None] = None) -> None:
         self._valid_moves = {
@@ -49,8 +65,10 @@ class GameBoard:
 
         self.play()
 
-
     def __str__(self) -> str:
+        """
+        A highly inefficient way to fetch and display the game board's state
+        """
         board = []
         board.append("".join([" " if i != self.cursor else "|" for i in range(self.width)]) + f"Current Letter: {self.current_letter}")
         board.append("".join([" " if i != self.cursor else "v" for i in range(self.width)]) + f"Turn: {self.turn}")
@@ -64,18 +82,49 @@ class GameBoard:
         return "\n".join(board)
 
     def build_board(self, starting_board: Union[str, None] = None) -> dict[tuple[int,int],str]:
+        """
+        Builds the initial game board state and stores it, only caller is `__init__`.
+
+        Eventually will support receiving an existing game board (probably stored in a `.games/game_number.txt`
+        or some JSON blob. Will just take the file, parse it (error if some invalid state is found), and store it.
+
+        Arguments:
+        - starting_board: `Union[str, None]` - Currently raises NotImplementedError
+
+        Returns:
+        `dict[tuple[int, int]str]` - Represents the board state
+        """
         if starting_board:
             raise NotImplementedError
         return {(i,j):"_" for i in range(self.width) for j in range(self.height)}
 
     def get_letter(self) -> str:
+        """
+        Fetches a random letter from constant `LETTERS` using `random.choice`
+
+        Returns:
+        `str` - Whatever random letter was selected from `LETTERS`
+        """
         return choice(LETTERS)
 
     def render(self) -> None:
+        """
+        Clears out the terminal and prints the current board state to stdout.
+
+        Works beautifully well on iTerm2, but some terminal emulators (such as Warp)
+        seem to struggle with clearing the screen and printing in the case of rapid
+        user input.
+        """
         os.system("clear")
         print(self)
 
     def play(self) -> None:
+        """
+        The primary game loop. Pretty self-explanatory:
+        - render the board
+        - blocking until user presses a key
+        - check for and execute the appropriate move, if valid
+        """
         while True:
             self.render()
             user_input = self.queue.get()
@@ -84,11 +133,17 @@ class GameBoard:
             self._valid_moves[user_input].action()
 
     def _on_press(self, key):
+        """
+        The callback method `self.listener` uses to grab user keystrokes.
+
+        Doesn't support any special keys. Places useful keystrokes on `self.queue`.
+        """
         try:
             if hasattr(key, "char") and key.char not in self._valid_moves:
                 return
             if hasattr(key, "char"):
                 self.queue.put(key.char)
+        # Pressed a special key (such as arrows, return, etc) -> Obviously do nothing
         except AttributeError:
             pass
 
@@ -175,7 +230,7 @@ class GameBoard:
 
 
 def main():
-    GameBoard(20, 10)
+    GameBoard()
 
 if __name__ == "__main__":
     main()
