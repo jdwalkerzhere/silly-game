@@ -45,7 +45,7 @@ class GameBoard:
                 "h": Move("h", "Move Left", self.cursor_left),
                 "l": Move("l", "Move Right",self.cursor_right),
                 "i": Move("i", "Drop Letter at Position", self.drop_letter),
-                "x": Move("x", "Leave Game", self.quit_game),
+                "q": Move("q", "Leave Game", self.quit_game),
         }
         self._controls_string = '\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])
 
