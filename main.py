@@ -47,6 +47,7 @@ class GameBoard:
                 "i": Move("i", "Drop Letter at Position", self.drop_letter),
                 "x": Move("x", "Leave Game", self.quit_game),
         }
+        self._controls_string = '\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])
 
         self.width = width
         self.height = height
@@ -76,8 +77,7 @@ class GameBoard:
             board.append("".join([self.board[(i,j)] for i in range(self.width)]))
         board.append("".join([" " if i != self.cursor else "^" for i in range(self.width)]))
         board.append("".join([" " if i != self.cursor else "|" for i in range(self.width)]) + f"Score: {self.score}")
-        controls = '\n'.join([f'\t{m.key}: {m.description}' for m in self._valid_moves.values()])
-        board.append(f"Controls:\n{controls}")
+        board.append(f"Controls:\n{self._controls_string}")
         board.append("Input: ")
         return "\n".join(board)
 
@@ -148,25 +148,46 @@ class GameBoard:
             pass
 
 
-    def destroy_matches(self, x: int, y: int, letter: str) -> None:
+    def check_and_destroy_matches(self, x: int, y: int, letter: str, depth: int = 1) -> None:
         """
+        Recursive method that:
+        1. Checks for matches horizontally and vertically at the given (x,y) coordinates (three pointer method)
+        2. Confirms matches in both directions exceed the `destroy_count` member, add those to a set for removal
+        3. Increment the score (cascading crushes get a multiplier)
+        4. Iteratively call to `drop_supported` to populate a list of new candidate cells for deletion (necessary because of cascades)
+        5. Calls itself with each new candidate coordinate pair and cascades crushes if needed
+            - The above could likely be memoized in some way to avoid redundant match-checking
+
+        Arguments:
+        - x: `int` - The location the check starts on the horizontal axis of the board
+        - y: `int` - The location the check starts on the vertical axis of the board
+        - letter: `str` - The letter we are checking for matches against
+        - depth: `int` - the score multiplier (for the case of cascading crushes)
+
+        Modifies:
+        `self.board`
+        `self.score`
         """
         if letter == "_":
             return
 
+        # Look left for letter matches
         left = x
         while left >= 0 and self.board[(left, y)] == letter:
             left -= 1
 
+        # Look right for letter matches
         right = x 
         while right < self.width and self.board[(right, y)] == letter:
             right += 1
 
+        # Look down for letter matches
         down = y
         while down < self.height and self.board[(x, down)] == letter:
             down += 1
 
         destroyed = set()
+        # Confirm windows of matches are greater than `destroy_count`
         if right - left > self.destroy_count:
             for i in range(left + 1, right):
                 destroyed.add((i, y))
@@ -174,42 +195,94 @@ class GameBoard:
             for j in range(y, down):
                 destroyed.add((x, j))
 
-        self.score += 10 * len(destroyed)
+        # Update score
+        self.score += 10 * len(destroyed) * depth
+
         new_candidates = []
+
+        # This sort is necessary for vertical crushes to work
         for d_cell in sorted(destroyed, key=lambda x: x[1]):
+            # It is also necessary to do all possible drops before attempting cascading crushes
             new_candidates.extend(self.drop_supported(d_cell))
 
+        # Recursively check and delete any new cascading matches
         for cell in new_candidates:
-            x, y = cell
-            letter = self.board[cell]
-            self.destroy_matches(x, y, letter)
+            x, y, letter = *cell, self.board[cell]
+            self.check_and_destroy_matches(x, y, letter, depth + 1)
 
     def drop_supported(self, d_cell: tuple[int, int]) -> list[tuple[int, int]]:
+        """
+        This recursive method is responsible for taking an (x,y) coordinate pair and 'looking up'.
+
+        In the condition that we are already at the top of the board or the next cell up is already
+        empty, we can just set our current cell to empty (effectively dropping the existing value)
+        and return no new candidates for match checking.
+
+        Otherwise, the cell above the current coordinates contains a letter. In this case we drop
+        that value into our current cell and recursively (depth first) populate a new list of 
+        cells that we need to match check for deletion.
+
+        Arguments:
+        d_cell: `tuple[int, int]` - the (x,y) coordinate pair we need to 'delete'
+
+        Modifies:
+        `self.board`
+        """
         x, curr_y = d_cell
         next_y = curr_y - 1
 
+        # If you're at the top or empty cell above, set current cell empty and return
         if curr_y == 0 or self.board[(x, next_y)] == "_":
             self.board[(x, curr_y)] = "_"
             return []
 
+        # Some value exists above, move it down and recursively shift cells down
         new_candidates = [(x, curr_y)]
         self.board[(x, curr_y)] = self.board[(x, next_y)]
         new_candidates.extend(self.drop_supported((x, next_y)))
+
+        # Return new possible candidates for match checking and cascading deletions
         return new_candidates
 
     def cursor_left(self) -> None:
-        assert 0 <= self.cursor <= self.width - 1
+        """
+        The callback for "Move Left" keyboard inputs.
+
+        Modifies:
+        `self.cursor`
+        """
+        assert 0 <= self.cursor <= self.width - 1  # Asserting against impossible behavior
         if self.cursor == 0:
             return
         self.cursor -= 1
 
     def cursor_right(self) -> None:
-        assert 0 <= self.cursor <= self.width - 1
+        """
+        The callback for "Move Right" keyboard inputs.
+
+        Modifies:
+        `self.cursor`
+        """
+        assert 0 <= self.cursor <= self.width - 1  # Asserting against impossible behavior
         if self.cursor == self.width - 1:
             return
         self.cursor += 1
 
     def drop_letter(self) -> None:
+        """
+        The callback for "Drop Letter at Position" keyboard inputs.
+
+        1. Checks where a letter should be set vertically
+        2. Places the letter
+        3. Calls `check_and_destroy_matches` on that cell with that letter
+        4. Updates the `current_letter` field
+        5. Increments the `turn` member
+
+        Modifies:
+        `self.board` <- Indirectly via `check_and_destroy_matches`
+        `self.current_letter`
+        `self.turn`
+        """
         y_check = self.height - 1
 
         while y_check >= 0 and self.board[(self.cursor, y_check)] != "_":
@@ -219,11 +292,14 @@ class GameBoard:
             return
 
         self.board[(self.cursor, y_check)] = self.current_letter
-        self.destroy_matches(self.cursor, y_check, self.board[(self.cursor, y_check)])
+        self.check_and_destroy_matches(self.cursor, y_check, self.board[(self.cursor, y_check)])
         self.current_letter = self.get_letter()
         self.turn += 1
 
     def quit_game(self) -> None:
+        """
+        The callback for "Leave Game" keyboard inputs.
+        """
         self.listener.stop()
         print("Thanks for playing!")
         sys.exit(0)
